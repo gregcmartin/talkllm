@@ -17,25 +17,34 @@ For detailed information about the original project's features, setup instructio
 This fork maintains the core functionality of the original project while adding:
 - [List your specific enhancements or modifications here]
 
-## Setup & Usage
+## Quick Setup
 
-Please refer to the original project's documentation for setup and usage instructions. The basic steps remain the same:
+For Mac users, we provide an install script with optimized settings:
 
-1. Install dependencies:
 ```bash
-# For most systems
-uv pip install -r requirements.txt
+# Make the install script executable
+chmod +x install.sh
 
-# For Mac users
-uv pip install -r requirements_mac.txt
+# Run the install script
+./install.sh
 ```
 
-2. Run the pipeline using one of the following approaches:
+This script will:
+1. Install all required dependencies
+2. Set up MeloTTS with unidic
+3. Provide the command to run the pipeline with optimal Mac settings:
+   - LightningWhisperMLX for STT
+   - MLX LM for language model
+   - MeloTTS for TTS
+   - MPS for hardware acceleration
+   - Automatic language detection
+
+## Alternative Setup & Usage
+
+For other setup options and detailed configuration, please refer to the [original project documentation](https://github.com/huggingface/speech-to-speech). The pipeline can be run using:
 - Server/Client approach
 - Local approach
 - Docker Server approach
-
-For detailed instructions and configuration options, please see the [original documentation](https://github.com/huggingface/speech-to-speech).
 
 ## Credits
 
