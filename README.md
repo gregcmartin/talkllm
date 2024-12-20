@@ -31,11 +31,10 @@ chmod +x install.sh
 
 This script will:
 1. Install all required dependencies
-2. Set up MeloTTS with unidic
-3. Provide the command to run the pipeline with optimal Mac settings:
+2. Provide the command to run the pipeline with optimal Mac settings:
    - LightningWhisperMLX for STT
-   - MLX LM for language model
-   - MeloTTS for TTS
+   - MLX LM for language model (Qwen2.5-72B-Instruct-bf16)
+   - ChatTTS for TTS
    - MPS for hardware acceleration
    - Automatic language detection
 
