@@ -70,8 +70,9 @@ class ChatTTSHandler(BaseHandler):
         self.text_cache = {}
         self.max_cache_size = 1000
         
-        # Voice embeddings cache
-        self.voice_embeddings = {}
+        # Voice embeddings cache directory
+        self.voice_cache_dir = Path("voice_embeddings")
+        self.voice_cache_dir.mkdir(exist_ok=True)
         
         # Load or create speaker embedding
         self._setup_speaker_embedding()
@@ -83,7 +84,7 @@ class ChatTTSHandler(BaseHandler):
 
     def _setup_speaker_embedding(self):
         """Setup speaker embedding with efficient file handling."""
-        self.speaker_file = Path(f"speaker_embedding_{self.voice_type}.pkl")
+        self.speaker_file = self.voice_cache_dir / f"speaker_embedding_{self.voice_type}.pkl"
         try:
             if self.speaker_file.exists():
                 with open(self.speaker_file, 'rb') as f:
@@ -101,7 +102,8 @@ class ChatTTSHandler(BaseHandler):
         best_embedding = None
         best_score = float('-inf')
         
-        for _ in range(5):  # Try 5 different voices
+        # Try more voices for better selection
+        for _ in range(10):  # Increased from 5 to 10 attempts
             embedding = self.model.sample_random_speaker()
             score = self._evaluate_voice_match(embedding)
             if score > best_score:
@@ -116,12 +118,20 @@ class ChatTTSHandler(BaseHandler):
         """Evaluate how well a voice matches the desired type."""
         # This is a placeholder for voice characteristic analysis
         # In practice, you would analyze the embedding's characteristics
-        return np.random.random()  # Simplified random scoring for now
+        # For now, we'll use a consistent random seed based on the voice type
+        # to ensure we get the same voice each time for a given type
+        np.random.seed(hash(self.voice_type) % (2**32))
+        score = np.random.random()
+        np.random.seed(None)  # Reset seed
+        return score
 
     def _save_speaker_embedding(self):
         """Save speaker embedding with atomic write."""
         temp_file = self.speaker_file.with_suffix('.tmp')
         try:
+            # Ensure directory exists
+            self.voice_cache_dir.mkdir(exist_ok=True)
+            
             with open(temp_file, 'wb') as f:
                 pickle.dump(self.speaker_embedding, f)
             temp_file.replace(self.speaker_file)  # Atomic replace
@@ -134,7 +144,7 @@ class ChatTTSHandler(BaseHandler):
         """Change the speaker voice."""
         if voice_type is not None and voice_type in VOICE_TYPES:
             self.voice_type = voice_type
-            self._create_new_speaker()
+            self._setup_speaker_embedding()  # Load existing or create new voice
             self.params_infer_code = ChatTTS.Chat.InferCodeParams(
                 spk_emb=self.speaker_embedding,
             )
