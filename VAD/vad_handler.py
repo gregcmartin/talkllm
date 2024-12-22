@@ -23,12 +23,12 @@ class VADHandler(BaseHandler):
     def setup(
         self,
         should_listen,
-        thresh=0.35,  # Higher threshold for less sensitivity to noise
+        thresh=0.3,  # Lower threshold for better sensitivity
         sample_rate=16000,
-        min_silence_ms=800,  # Longer silence for better completion
-        min_speech_ms=250,  # Allow shorter speech segments
+        min_silence_ms=500,  # Shorter silence for more responsive detection
+        min_speech_ms=100,  # Much shorter minimum speech duration
         max_speech_ms=float("inf"),
-        speech_pad_ms=150,  # More padding for smoother transitions
+        speech_pad_ms=200,  # More padding for smoother transitions
         audio_enhancement=False,
     ):
         logger.debug(f"Initializing VAD with threshold={thresh}, sample_rate={sample_rate}")
