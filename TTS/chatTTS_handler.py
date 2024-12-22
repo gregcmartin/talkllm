@@ -82,6 +82,8 @@ class ChatTTSHandler(BaseHandler):
         self.params_infer_code = ChatTTS.Chat.InferCodeParams(
             spk_emb=self.speaker_embedding,
         )
+        
+        logger.info(f"ChatTTS setup complete with {voice_type} voice")
 
     def _setup_speaker_embedding(self):
         """Setup speaker embedding with efficient file handling."""
@@ -90,7 +92,7 @@ class ChatTTSHandler(BaseHandler):
             if self.speaker_file.exists():
                 with open(self.speaker_file, 'rb') as f:
                     self.speaker_embedding = pickle.load(f)
-                logger.info(f"Loaded existing {self.voice_type} voice")
+                logger.info(f"Loaded existing {self.voice_type} voice from {self.speaker_file}")
             else:
                 self._create_new_speaker()
         except Exception as e:
@@ -104,9 +106,11 @@ class ChatTTSHandler(BaseHandler):
         torch.manual_seed(seed)
         np.random.seed(seed)
         
+        logger.info(f"Generating new {self.voice_type} voice with seed {seed}")
+        
         # Generate a fixed number of candidates
         candidates = []
-        for _ in range(20):  # Generate more candidates for better selection
+        for i in range(20):  # Generate more candidates for better selection
             embedding = self.model.sample_random_speaker()
             # Convert embedding to bytes for hashing
             if isinstance(embedding, str):
@@ -121,12 +125,14 @@ class ChatTTSHandler(BaseHandler):
             # Create a deterministic hash
             embedding_hash = hashlib.sha256(embedding_bytes).hexdigest()
             candidates.append((embedding, embedding_hash))
+            logger.debug(f"Generated candidate {i+1}/20 with hash {embedding_hash[:8]}")
         
         # Sort candidates by hash to ensure deterministic selection
         candidates.sort(key=lambda x: x[1])
         
         # Always select the same embedding for this voice type
         self.speaker_embedding = candidates[0][0]
+        logger.info(f"Selected voice embedding with hash {candidates[0][1][:8]}")
         
         # Reset random seeds
         torch.manual_seed(torch.initial_seed())
@@ -145,6 +151,7 @@ class ChatTTSHandler(BaseHandler):
             with open(temp_file, 'wb') as f:
                 pickle.dump(self.speaker_embedding, f)
             temp_file.replace(self.speaker_file)  # Atomic replace
+            logger.info(f"Saved voice embedding to {self.speaker_file}")
         except Exception as e:
             logger.warning(f"Failed to save speaker embedding: {e}")
             if temp_file.exists():
@@ -209,15 +216,18 @@ class ChatTTSHandler(BaseHandler):
         # Track speech timing
         self.last_speech_time = time.time()
         console.print(f"[green]ASSISTANT: {llm_sentence}")
+        logger.info(f"Generating speech for: {llm_sentence}")
 
         # Get audio generator
         wavs_gen = self.model.infer(
             llm_sentence, params_infer_code=self.params_infer_code, stream=self.stream
         )
+        logger.debug("Got audio generator")
 
         if self.stream:
             for gen in wavs_gen:
                 if gen[0] is None or len(gen[0]) == 0:
+                    logger.warning("Empty audio chunk received")
                     # Only allow interruption after cooldown
                     if time.time() - self.last_speech_time > self.speech_cooldown:
                         self.should_listen.set()
@@ -225,6 +235,7 @@ class ChatTTSHandler(BaseHandler):
                 
                 # Process audio chunk efficiently
                 audio_chunk = self._process_audio_chunk(gen[0])
+                logger.debug(f"Processed audio chunk of size {len(audio_chunk)}")
                 
                 # Handle multi-channel audio
                 if audio_chunk.ndim > 1:
@@ -235,6 +246,7 @@ class ChatTTSHandler(BaseHandler):
                 while pos + self.chunk_size <= len(audio_chunk):
                     yield audio_chunk[pos:pos + self.chunk_size]
                     pos += self.chunk_size
+                    logger.debug(f"Yielded audio chunk at position {pos}")
                 
                 # Handle remaining samples
                 if pos < len(audio_chunk):
@@ -242,9 +254,11 @@ class ChatTTSHandler(BaseHandler):
                     self.padding_buffer[:remaining] = audio_chunk[pos:]
                     self.padding_buffer[remaining:] = 0
                     yield self.padding_buffer
+                    logger.debug(f"Yielded final chunk with {remaining} samples")
         else:
             wavs = wavs_gen
             if len(wavs[0]) == 0:
+                logger.warning("Empty audio received in non-stream mode")
                 # Only allow interruption after cooldown
                 if time.time() - self.last_speech_time > self.speech_cooldown:
                     self.should_listen.set()
@@ -252,6 +266,7 @@ class ChatTTSHandler(BaseHandler):
                 
             # Process entire audio at once
             audio_chunk = self._process_audio_chunk(wavs[0])
+            logger.debug(f"Processed complete audio of size {len(audio_chunk)}")
             
             # Yield fixed-size chunks
             for i in range(0, len(audio_chunk), self.chunk_size):
@@ -262,11 +277,13 @@ class ChatTTSHandler(BaseHandler):
                     yield self.padding_buffer
                 else:
                     yield chunk
+                logger.debug(f"Yielded chunk {i//self.chunk_size + 1}")
         
         # Update speech timing and respect cooldown
         self.last_speech_time = time.time()
         if time.time() - self.last_speech_time > self.speech_cooldown:
             self.should_listen.set()
+        logger.info("Finished generating speech")
 
     @staticmethod
     def list_voice_types():
