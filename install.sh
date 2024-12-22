@@ -5,17 +5,17 @@ set -e
 
 echo "Setting up TalkLLM..."
 
-# Check if Python 3.11 is installed
-if ! command -v python3.11 &> /dev/null; then
-    echo "Error: Python 3.11 is required but not installed."
-    echo "Please install Python 3.11 using:"
-    echo "brew install python@3.11"
+# Check if Python 3.12 is installed
+if ! command -v python3.12 &> /dev/null; then
+    echo "Error: Python 3.12 is required but not installed."
+    echo "Please install Python 3.12 using:"
+    echo "brew install python@3.12"
     exit 1
 fi
 
-# Create and activate virtual environment with Python 3.11
+# Create and activate virtual environment with Python 3.12
 echo "Creating Python virtual environment..."
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 
 # Install uv if not present
@@ -35,25 +35,22 @@ fi
 
 # Ensure we're using the latest pip
 echo "Upgrading pip..."
-python3.11 -m pip install --upgrade pip
+python3.12 -m pip install --upgrade pip
 
-# Install dependencies one by one
+# Install dependencies with performance optimizations
 echo "Installing core dependencies (this may take a few minutes)..."
 
 echo "Installing nltk..."
 uv pip install "nltk>=3.8.0"
 
 echo "Installing torch and torchaudio..."
-uv pip install "torch==2.4.0" "torchaudio==2.4.0"  # Specific versions known to work on Mac
+uv pip install --no-deps "torch==2.4.0" "torchaudio==2.4.0"  # Specific versions optimized for Mac
 
 echo "Installing sounddevice..."
 uv pip install "sounddevice>=0.4.6"
 
 echo "Installing lightning-whisper-mlx..."
 uv pip install "lightning-whisper-mlx>=0.0.10"
-
-echo "Installing mlx-lm..."
-uv pip install "mlx-lm>=0.0.1"
 
 echo "Installing ChatTTS..."
 uv pip install "ChatTTS>=0.0.1"
@@ -107,38 +104,26 @@ else
     ollama pull qwen2.5:7b
 fi
 
-echo "Setup complete! You can now run the pipeline with optimal Mac settings using either:"
+echo "Setup complete! You can now run the optimized pipeline with:"
 echo ""
-echo "1. MLX-optimized setup:"
 echo "source .venv/bin/activate && python s2s_pipeline.py \\"
 echo "    --local_mac_optimal_settings \\"
-echo "    --device mps \\"
-echo "    --stt_model_name large-v3 \\"
-echo "    --language auto \\"
-echo "    --mlx_lm_model_name mlx-community/Qwen2.5-72B-Instruct-bf16 \\"
-echo "    --tts chatTTS"
-echo ""
-echo "2. Ollama-based setup:"
-echo "source .venv/bin/activate && python s2s_pipeline.py \\"
 echo "    --mode local \\"
 echo "    --device mps \\"
-echo "    --stt whisper-mlx \\"
-echo "    --stt_model_name large-v3 \\"
-echo "    --language auto \\"
 echo "    --llm ollama \\"
-echo "    --ollama_model_name qwen2.5:7b \\"
-echo "    --tts chatTTS"
+echo "    --ollama_model qwen2.5:7b"
 echo ""
-echo "The MLX configuration uses:"
-echo "- LightningWhisperMLX for STT"
-echo "- MLX LM for language model (Qwen2.5-72B-Instruct-bf16)"
-echo "- ChatTTS for TTS"
-echo "- MPS for hardware acceleration"
+echo "This configuration uses:"
+echo "- Hardware-accelerated Silero VAD with MPS"
+echo "- LightningWhisperMLX for STT (optimized for Apple Silicon)"
+echo "- Ollama with qwen2.5:7b model for LLM"
+echo "- ChatTTS for high-quality speech synthesis"
 echo "- Automatic language detection"
 echo ""
-echo "The Ollama configuration uses:"
-echo "- LightningWhisperMLX for STT"
-echo "- Ollama for language model (using Qwen 2.5 7B)"
-echo "- ChatTTS for TTS"
-echo "- MPS for hardware acceleration"
-echo "- Automatic language detection"
+echo "Performance optimizations include:"
+echo "- Pre-allocated buffers for audio processing"
+echo "- Efficient tensor operations"
+echo "- Smart cache management"
+echo "- Optimized device placement (MPS/CPU)"
+echo "- Streamlined audio processing pipeline"
+echo "- Language detection caching"

@@ -36,12 +36,16 @@ class VADIterator:
         self.threshold = threshold
         self.sampling_rate = sampling_rate
         self.is_speaking = False
-        self.buffer = []
 
         if sampling_rate not in [8000, 16000]:
             raise ValueError(
                 "VADIterator does not support sampling rates other than [8000, 16000]"
             )
+
+        # Pre-allocate buffer as tensor to avoid list operations
+        self.max_buffer_size = 30 * sampling_rate  # 30 seconds max
+        self.buffer = torch.zeros(self.max_buffer_size, dtype=torch.float32, device=model.device)
+        self.buffer_idx = 0
 
         self.min_silence_samples = sampling_rate * min_silence_duration_ms / 1000
         self.speech_pad_samples = sampling_rate * speech_pad_ms / 1000
@@ -52,6 +56,7 @@ class VADIterator:
         self.triggered = False
         self.temp_end = 0
         self.current_sample = 0
+        self.buffer_idx = 0
 
     @torch.no_grad()
     def __call__(self, x):
@@ -62,14 +67,11 @@ class VADIterator:
         return_seconds: bool (default - False)
             whether return timestamps in seconds (default - samples)
         """
-
+        # Input should already be tensor from VADHandler
         if not torch.is_tensor(x):
-            try:
-                x = torch.Tensor(x)
-            except Exception:
-                raise TypeError("Audio cannot be casted to tensor. Cast it manually")
+            raise TypeError("Input must be a tensor")
 
-        window_size_samples = len(x[0]) if x.dim() == 2 else len(x)
+        window_size_samples = x.shape[-1]  # More efficient than len()
         self.current_sample += window_size_samples
 
         speech_prob = self.model(x, self.sampling_rate).item()
@@ -87,14 +89,18 @@ class VADIterator:
             if self.current_sample - self.temp_end < self.min_silence_samples:
                 return None
             else:
-                # end of speak
+                # End of speech detected
                 self.temp_end = 0
                 self.triggered = False
-                spoken_utterance = self.buffer
-                self.buffer = []
-                return spoken_utterance
+                # Return only the used portion of buffer
+                spoken_utterance = self.buffer[:self.buffer_idx].unsqueeze(0)
+                self.buffer_idx = 0  # Reset buffer index
+                return [spoken_utterance]  # Keep list format for compatibility
 
         if self.triggered:
-            self.buffer.append(x)
+            # Add to pre-allocated buffer
+            if self.buffer_idx + window_size_samples <= self.max_buffer_size:
+                self.buffer[self.buffer_idx:self.buffer_idx + window_size_samples] = x.squeeze()
+                self.buffer_idx += window_size_samples
 
         return None

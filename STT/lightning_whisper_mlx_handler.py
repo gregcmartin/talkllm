@@ -13,17 +13,8 @@ console = Console()
 
 SUPPORTED_LANGUAGES = [
     "en",
-    "fr",
-    "es",
-    "zh",
-    "ja",
-    "ko",
-    "hi",
     "de",
-    "pt",
-    "pl",
-    "it",
-    "nl",
+    "es",
 ]
 
 
@@ -44,20 +35,26 @@ class LightningWhisperSTTHandler(BaseHandler):
         if len(model_name.split("/")) > 1:
             model_name = model_name.split("/")[-1]
         self.device = device
-        self.model = LightningWhisperMLX(model=model_name, batch_size=6, quant=None)
+        # Increase batch size for better throughput
+        self.model = LightningWhisperMLX(model=model_name, batch_size=12, quant=None)
         self.start_language = language
         self.last_language = language
+        # Cache for language detection
+        self.language_cache = {}
+        # Counter for memory management
+        self.transcription_count = 0
+        self.cache_clear_interval = 50  # Clear cache every 50 transcriptions
 
         self.warmup()
 
     def warmup(self):
         logger.info(f"Warming up {self.__class__.__name__}")
 
-        # 2 warmup steps for no compile or compile mode with CUDA graphs capture
-        n_steps = 1
-        dummy_input = np.array([0] * 512)
-
-        for _ in range(n_steps):
+        # More thorough warmup with varying input sizes
+        dummy_inputs = [
+            np.array([0] * size) for size in [512, 1024, 2048]
+        ]
+        for dummy_input in dummy_inputs:
             _ = self.model.transcribe(dummy_input)["text"].strip()
 
     def process(self, spoken_prompt):
@@ -66,23 +63,36 @@ class LightningWhisperSTTHandler(BaseHandler):
         global pipeline_start
         pipeline_start = perf_counter()
 
+        # Use cached language if available
+        audio_hash = hash(spoken_prompt.tobytes())
+        
         if self.start_language != 'auto':
             transcription_dict = self.model.transcribe(spoken_prompt, language=self.start_language)
         else:
-            transcription_dict = self.model.transcribe(spoken_prompt)
-            language_code = transcription_dict["language"]
-            if language_code not in SUPPORTED_LANGUAGES:
-                logger.warning(f"Whisper detected unsupported language: {language_code}")
-                if self.last_language in SUPPORTED_LANGUAGES:  # reprocess with the last language
-                    transcription_dict = self.model.transcribe(spoken_prompt, language=self.last_language)
-                else:
-                    transcription_dict = {"text": "", "language": "en"}
+            if audio_hash in self.language_cache:
+                language_code = self.language_cache[audio_hash]
+                transcription_dict = self.model.transcribe(spoken_prompt, language=language_code)
             else:
-                self.last_language = language_code
+                transcription_dict = self.model.transcribe(spoken_prompt)
+                language_code = transcription_dict["language"]
+                
+                if language_code in SUPPORTED_LANGUAGES:
+                    self.last_language = language_code
+                    self.language_cache[audio_hash] = language_code
+                else:
+                    logger.warning(f"Whisper detected unsupported language: {language_code}")
+                    language_code = self.last_language if self.last_language in SUPPORTED_LANGUAGES else "en"
+                    transcription_dict = self.model.transcribe(spoken_prompt, language=language_code)
 
+        # Manage memory more efficiently
+        self.transcription_count += 1
+        if self.transcription_count >= self.cache_clear_interval:
+            torch.mps.empty_cache()
+            self.language_cache.clear()
+            self.transcription_count = 0
+            
         pred_text = transcription_dict["text"].strip()
         language_code = transcription_dict["language"]
-        torch.mps.empty_cache()
 
         logger.debug("finished whisper inference")
         console.print(f"[yellow]USER: {pred_text}")
