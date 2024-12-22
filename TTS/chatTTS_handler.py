@@ -108,8 +108,18 @@ class ChatTTSHandler(BaseHandler):
         candidates = []
         for _ in range(20):  # Generate more candidates for better selection
             embedding = self.model.sample_random_speaker()
-            # Create a deterministic hash of the embedding
-            embedding_hash = hashlib.sha256(embedding.tobytes()).hexdigest()
+            # Convert embedding to bytes for hashing
+            if isinstance(embedding, str):
+                embedding_bytes = embedding.encode('utf-8')
+            elif isinstance(embedding, np.ndarray):
+                embedding_bytes = embedding.tobytes()
+            elif isinstance(embedding, torch.Tensor):
+                embedding_bytes = embedding.cpu().numpy().tobytes()
+            else:
+                embedding_bytes = str(embedding).encode('utf-8')
+            
+            # Create a deterministic hash
+            embedding_hash = hashlib.sha256(embedding_bytes).hexdigest()
             candidates.append((embedding, embedding_hash))
         
         # Sort candidates by hash to ensure deterministic selection
