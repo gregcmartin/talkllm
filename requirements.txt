@@ -1,12 +1,28 @@
-nltk==3.9.1
-parler_tts @ git+https://github.com/huggingface/parler-tts.git
-melotts @ git+https://github.com/andimarafioti/MeloTTS.git#egg=MeloTTS  # made a copy of MeloTTS to have compatible versions of transformers
-torch>=2.4.0
-sounddevice==0.5.0
-ChatTTS>=0.1.1
-funasr>=1.1.6
-faster-whisper>=1.0.3
-modelscope>=1.17.1
-deepfilternet>=0.5.6
-openai>=1.40.1
-useful-moonshine @ git+https://github.com/andimarafioti/moonshine.git
+# Core dependencies
+torch  # For PyTorch functionality and model loading
+torchaudio  # For audio processing
+numpy  # For numerical operations
+sounddevice  # For audio I/O
+nltk  # For text processing
+rich  # For console output
+
+# Speech-to-Text (English)
+lightning-whisper-mlx
+#faster-whisper  # For speech recognition
+mlx-lm  # For MLX-based language models
+mlx  # Apple MLX framework
+
+# Text-to-Speech (English)
+ChatTTS  # For text-to-speech synthesis
+#parler_tts @ git+https://github.com/huggingface/parler-tts.git  # For high-quality TTS
+
+# Language Models
+ollama
+
+# Audio Processing
+deepfilternet  # For noise reduction and audio enhancement
+librosa  # For audio processing and feature extraction
+resampy  # For high-quality audio resampling
+
+# Project specific
+#useful-moonshine @ git+https://github.com/usefulsensors/moonshine.git  # For audio processing utilities

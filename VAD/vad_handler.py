@@ -101,8 +101,17 @@ class VADHandler(BaseHandler):
                 if self.audio_enhancement:
                     array = self._enhance_audio(array)
                 
+                # Ensure minimum size for WhisperMLX
+                min_samples = int(0.5 * self.sample_rate)  # At least 0.5 seconds
+                if array.shape[-1] < min_samples:
+                    logger.debug(f"Padding audio from {array.shape[-1]} to {min_samples} samples")
+                    padding = torch.zeros(min_samples - array.shape[-1], device=array.device)
+                    array = torch.cat([array, padding])
+                
                 # Convert to numpy only at the final step
-                yield array.numpy()
+                array_np = array.numpy()
+                logger.debug(f"Yielding audio chunk of {len(array_np)} samples")
+                yield array_np
                 
         except Exception as e:
             logger.warning(f"Error processing audio chunk: {e}")
