@@ -1,47 +1,57 @@
-# Python
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
+.pytest_cache/
+
+# Distribution / packaging
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+build/
 *.egg-info/
-.installed.cfg
-*.egg
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.env
-.venv/
+# Model files and assets
+asset/
+models/
+mlx_models/
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.onnx
 
-# IDE
+# IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Project specific
+# Logs and databases
+*.log
+*.sqlite
 tmp/
-cache/
+
+# Environment variables
+.env
+.env.*
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development settings
+local_settings.py
+
+# Audio files that might be generated
+*.wav
+*.mp3
+*.ogg
+
+# Torch cache
+.cache/torch/
+torch_compile_cache/

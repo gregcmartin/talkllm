@@ -1,4 +1,5 @@
 # Core dependencies with more flexible versioning
+requests>=2.31.0  # For Ollama API
 nltk>=3.8.0
 torch>=2.1.0
 sounddevice>=0.4.6

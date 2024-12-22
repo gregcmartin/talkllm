@@ -69,8 +69,47 @@ uv pip install git+https://github.com/huggingface/parler-tts.git
 echo "Installing moonshine..."
 uv pip install git+https://github.com/andimarafioti/moonshine.git
 
-echo "Setup complete! You can now run the pipeline with optimal Mac settings using:"
+# Check Ollama installation and status
+echo "Checking Ollama setup..."
+if command -v ollama &> /dev/null; then
+    echo "Ollama is installed"
+    
+    # Check if Ollama service is running
+    if pgrep -x "ollama" > /dev/null; then
+        echo "Ollama service is running"
+        
+        # Check if qwen2.5:7b model is pulled
+        if ollama list | grep -q "qwen2.5:7b"; then
+            echo "Qwen2.5:7b model is already pulled"
+        else
+            echo "Pulling Qwen2.5:7b model..."
+            ollama pull qwen2.5:7b
+        fi
+    else
+        echo "Ollama service is not running"
+        echo "Starting Ollama service..."
+        ollama serve > /dev/null 2>&1 &
+        sleep 5  # Wait for service to start
+        
+        echo "Pulling Qwen2.5:7b model..."
+        ollama pull qwen2.5:7b
+    fi
+else
+    echo "Ollama is not installed"
+    echo "Installing Ollama..."
+    curl -fsSL https://ollama.com/install.sh | sh
+    
+    echo "Starting Ollama service..."
+    ollama serve > /dev/null 2>&1 &
+    sleep 5  # Wait for service to start
+    
+    echo "Pulling Qwen2.5:7b model..."
+    ollama pull qwen2.5:7b
+fi
+
+echo "Setup complete! You can now run the pipeline with optimal Mac settings using either:"
 echo ""
+echo "1. MLX-optimized setup:"
 echo "source .venv/bin/activate && python s2s_pipeline.py \\"
 echo "    --local_mac_optimal_settings \\"
 echo "    --device mps \\"
@@ -79,9 +118,27 @@ echo "    --language auto \\"
 echo "    --mlx_lm_model_name mlx-community/Qwen2.5-72B-Instruct-bf16 \\"
 echo "    --tts chatTTS"
 echo ""
-echo "This configuration uses:"
+echo "2. Ollama-based setup:"
+echo "source .venv/bin/activate && python s2s_pipeline.py \\"
+echo "    --mode local \\"
+echo "    --device mps \\"
+echo "    --stt whisper-mlx \\"
+echo "    --stt_model_name large-v3 \\"
+echo "    --language auto \\"
+echo "    --llm ollama \\"
+echo "    --ollama_model_name qwen2.5:7b \\"
+echo "    --tts chatTTS"
+echo ""
+echo "The MLX configuration uses:"
 echo "- LightningWhisperMLX for STT"
 echo "- MLX LM for language model (Qwen2.5-72B-Instruct-bf16)"
+echo "- ChatTTS for TTS"
+echo "- MPS for hardware acceleration"
+echo "- Automatic language detection"
+echo ""
+echo "The Ollama configuration uses:"
+echo "- LightningWhisperMLX for STT"
+echo "- Ollama for language model (using Qwen 2.5 7B)"
 echo "- ChatTTS for TTS"
 echo "- MPS for hardware acceleration"
 echo "- Automatic language detection"

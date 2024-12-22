@@ -39,7 +39,34 @@ class ChatTTSHandler(BaseHandler):
         logger.info(f"Warming up {self.__class__.__name__}")
         _ = self.model.infer("text")
 
-    def process(self, llm_sentence):
+    def clean_text(self, text):
+        """Clean text by removing problematic characters while preserving meaning."""
+        # Replace common punctuation with periods which work well with TTS
+        text = text.replace('?', '.')
+        text = text.replace('!', '.')
+        text = text.replace("'", '')
+        # Remove any remaining special characters but preserve sentence structure
+        text = text.replace(',', '')  # Remove commas
+        text = text.replace(':', '')  # Remove colons
+        text = text.replace(';', '.')  # Convert semicolons to periods
+        text = text.replace('-', ' ')  # Convert hyphens to spaces
+        text = text.replace('/', ' or ')  # Convert slashes to 'or'
+        text = text.replace('(', '')  # Remove parentheses
+        text = text.replace(')', '')
+        text = text.replace('&', ' and ')  # Convert ampersands to 'and'
+        # Only allow letters, numbers, spaces, and periods
+        text = ''.join(c for c in text if c.isalnum() or c.isspace() or c == '.')
+        # Ensure proper spacing
+        text = ' '.join(text.split())
+        return text.strip()
+
+    def process(self, llm_input):
+        # Extract text from LLM input (which could be a tuple of (text, language_code))
+        llm_sentence = llm_input[0] if isinstance(llm_input, tuple) else llm_input
+        
+        # Clean the text before displaying and processing
+        llm_sentence = self.clean_text(llm_sentence)
+        
         console.print(f"[green]ASSISTANT: {llm_sentence}")
         if self.device == "mps":
             import time
@@ -62,11 +89,14 @@ class ChatTTSHandler(BaseHandler):
                     self.should_listen.set()
                     return
                 audio_chunk = librosa.resample(gen[0], orig_sr=24000, target_sr=16000)
-                audio_chunk = (audio_chunk * 32768).astype(np.int16)[0]
+                audio_chunk = (audio_chunk * 32768).astype(np.int16)
+                if audio_chunk.ndim > 1:
+                    audio_chunk = audio_chunk[0]  # Take first channel if multi-channel
                 while len(audio_chunk) > self.chunk_size:
                     yield audio_chunk[: self.chunk_size]  # Return the first chunk_size samples of the audio data
                     audio_chunk = audio_chunk[self.chunk_size :]  # Remove the samples that have already been returned
-                yield np.pad(audio_chunk, (0, self.chunk_size - len(audio_chunk)))
+                if len(audio_chunk) > 0:
+                    yield np.pad(audio_chunk, (0, self.chunk_size - len(audio_chunk)))
         else:
             wavs = wavs_gen
             if len(wavs[0]) == 0:
