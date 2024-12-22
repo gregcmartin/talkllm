@@ -44,7 +44,7 @@ class VADIterator:
 
         # Pre-allocate buffer as tensor to avoid list operations
         self.max_buffer_size = 30 * sampling_rate  # 30 seconds max
-        self.buffer = torch.zeros(self.max_buffer_size, dtype=torch.float32, device=model.device)
+        self.buffer = torch.zeros(self.max_buffer_size, dtype=torch.float32, device=next(model.parameters()).device)
         self.buffer_idx = 0
 
         self.min_silence_samples = sampling_rate * min_silence_duration_ms / 1000
@@ -71,10 +71,24 @@ class VADIterator:
         if not torch.is_tensor(x):
             raise TypeError("Input must be a tensor")
 
+        # Ensure input is on the correct device
+        if x.device != self.buffer.device:
+            x = x.to(self.buffer.device)
+
         window_size_samples = x.shape[-1]  # More efficient than len()
         self.current_sample += window_size_samples
 
-        speech_prob = self.model(x, self.sampling_rate).item()
+        # Resize input if needed
+        if window_size_samples > 512:
+            # Split into 512-sample chunks
+            chunks = x.view(-1, 512)
+            speech_probs = []
+            for chunk in chunks:
+                prob = self.model(chunk.unsqueeze(0), self.sampling_rate).item()
+                speech_probs.append(prob)
+            speech_prob = sum(speech_probs) / len(speech_probs)
+        else:
+            speech_prob = self.model(x, self.sampling_rate).item()
 
         if (speech_prob >= self.threshold) and self.temp_end:
             self.temp_end = 0

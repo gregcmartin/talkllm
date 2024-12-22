@@ -40,6 +40,10 @@ class VADHandler(BaseHandler):
         self.device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         self.model, _ = torch.hub.load("snakers4/silero-vad", "silero_vad")
         self.model = self.model.to(self.device)
+        
+        # Pre-allocate reusable buffer
+        self.buffer = torch.zeros(1024, dtype=torch.float32, device=self.device)
+        
         self.iterator = VADIterator(
             self.model,
             threshold=thresh,
@@ -62,16 +66,16 @@ class VADHandler(BaseHandler):
             # Convert to float32 in [-1, 1] range in one operation
             audio_tensor = audio_tensor / 32768.0
             
-            # Ensure exactly 512 samples for 16kHz
-            if len(audio_tensor) != 512:
-                logger.debug(f"Skipping chunk with {len(audio_tensor)} samples (need 512)")
-                return
+            # Resize buffer if needed
+            if len(audio_tensor) > len(self.buffer):
+                self.buffer = torch.zeros(len(audio_tensor), dtype=torch.float32, device=self.device)
             
-            # Move to device and ensure shape in one operation
-            audio_tensor = audio_tensor.to(self.device).view(1, -1)
+            # Copy to pre-allocated buffer and move to device
+            self.buffer[:len(audio_tensor)] = audio_tensor
+            audio_tensor = self.buffer[:len(audio_tensor)]
             
             # Process through VAD
-            vad_output = self.iterator(audio_tensor)
+            vad_output = self.iterator(audio_tensor.view(1, -1))
             
             # If we have output, check its duration
             if vad_output is not None and len(vad_output) != 0:
