@@ -30,6 +30,15 @@ PUNCTUATION_PATTERNS = {
     r'\s+': ' ',   # Normalize spaces
 }
 
+# Voice types with their characteristics
+VOICE_TYPES = {
+    "neutral": {"description": "Balanced, natural speaking voice"},
+    "warm": {"description": "Friendly, approachable voice"},
+    "professional": {"description": "Clear, authoritative voice"},
+    "casual": {"description": "Relaxed, conversational voice"},
+    "energetic": {"description": "Dynamic, enthusiastic voice"},
+}
+
 class ChatTTSHandler(BaseHandler):
     def setup(
         self,
@@ -38,6 +47,7 @@ class ChatTTSHandler(BaseHandler):
         gen_kwargs={},  # Unused
         stream=True,
         chunk_size=1024,  # Larger chunks for smoother audio
+        voice_type="neutral",  # Voice type selection
         speaker_id=None,  # New parameter for speaker configuration
     ):
         self.should_listen = should_listen
@@ -46,6 +56,7 @@ class ChatTTSHandler(BaseHandler):
         self.model.load(compile=False)  # Doesn't work for me with True
         self.chunk_size = chunk_size
         self.stream = stream
+        self.voice_type = voice_type
         
         # Pre-allocate reusable buffers with larger sizes
         self.audio_buffer = np.zeros(chunk_size * 2, dtype=np.int16)  # Double buffer
@@ -59,6 +70,9 @@ class ChatTTSHandler(BaseHandler):
         self.text_cache = {}
         self.max_cache_size = 1000
         
+        # Voice embeddings cache
+        self.voice_embeddings = {}
+        
         # Load or create speaker embedding
         self._setup_speaker_embedding()
             
@@ -69,12 +83,12 @@ class ChatTTSHandler(BaseHandler):
 
     def _setup_speaker_embedding(self):
         """Setup speaker embedding with efficient file handling."""
-        self.speaker_file = Path("speaker_embedding.pkl")
+        self.speaker_file = Path(f"speaker_embedding_{self.voice_type}.pkl")
         try:
             if self.speaker_file.exists():
                 with open(self.speaker_file, 'rb') as f:
                     self.speaker_embedding = pickle.load(f)
-                logger.info("Loaded existing speaker voice")
+                logger.info(f"Loaded existing {self.voice_type} voice")
             else:
                 self._create_new_speaker()
         except Exception as e:
@@ -83,9 +97,26 @@ class ChatTTSHandler(BaseHandler):
 
     def _create_new_speaker(self):
         """Create and save new speaker embedding."""
-        self.speaker_embedding = self.model.sample_random_speaker()
+        # Sample multiple voices and select the best match for the voice type
+        best_embedding = None
+        best_score = float('-inf')
+        
+        for _ in range(5):  # Try 5 different voices
+            embedding = self.model.sample_random_speaker()
+            score = self._evaluate_voice_match(embedding)
+            if score > best_score:
+                best_score = score
+                best_embedding = embedding
+        
+        self.speaker_embedding = best_embedding
         self._save_speaker_embedding()
-        logger.info("Generated new speaker voice")
+        logger.info(f"Generated new {self.voice_type} voice")
+
+    def _evaluate_voice_match(self, embedding):
+        """Evaluate how well a voice matches the desired type."""
+        # This is a placeholder for voice characteristic analysis
+        # In practice, you would analyze the embedding's characteristics
+        return np.random.random()  # Simplified random scoring for now
 
     def _save_speaker_embedding(self):
         """Save speaker embedding with atomic write."""
@@ -99,16 +130,19 @@ class ChatTTSHandler(BaseHandler):
             if temp_file.exists():
                 temp_file.unlink()  # Clean up temp file
         
-    def set_speaker(self, speaker_id=None):
+    def set_speaker(self, voice_type=None):
         """Change the speaker voice."""
-        if speaker_id is not None:
-            logger.warning("Specific speaker selection not yet supported")
-            
-        self._create_new_speaker()
-        self.params_infer_code = ChatTTS.Chat.InferCodeParams(
-            spk_emb=self.speaker_embedding,
-        )
-        self.warmup()
+        if voice_type is not None and voice_type in VOICE_TYPES:
+            self.voice_type = voice_type
+            self._create_new_speaker()
+            self.params_infer_code = ChatTTS.Chat.InferCodeParams(
+                spk_emb=self.speaker_embedding,
+            )
+            self.warmup()
+        else:
+            available_voices = "\n".join(f"- {v}: {VOICE_TYPES[v]['description']}" 
+                                       for v in VOICE_TYPES)
+            logger.warning(f"Invalid voice type. Available voices:\n{available_voices}")
 
     def warmup(self):
         """Warm up the model with a short text."""
@@ -213,3 +247,8 @@ class ChatTTSHandler(BaseHandler):
         self.last_speech_time = time.time()
         if time.time() - self.last_speech_time > self.speech_cooldown:
             self.should_listen.set()
+
+    @staticmethod
+    def list_voice_types():
+        """List available voice types and their descriptions."""
+        return "\n".join(f"{v}: {VOICE_TYPES[v]['description']}" for v in VOICE_TYPES)

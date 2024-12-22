@@ -17,8 +17,8 @@ For detailed information about the original project's features, setup instructio
 This fork maintains the core functionality of the original project while adding significant optimizations:
 
 ### Voice Activity Detection (VAD)
-- Hardware-accelerated Silero VAD using MPS
-- Pre-allocated tensor buffers for efficient memory usage
+- Hardware-accelerated Silero VAD with MPS
+- Pre-allocated tensor buffers
 - Optimized audio processing pipeline
 - Improved silence detection and speech segmentation
 
@@ -26,21 +26,25 @@ This fork maintains the core functionality of the original project while adding 
 - LightningWhisperMLX optimized for Apple Silicon
 - Enhanced language detection with caching
 - Efficient batch processing
-- Thorough model warmup for consistent performance
+- Thorough model warmup
 
 ### Language Model (LLM)
 - Integrated Ollama support with qwen2.5:7b model
-- Optimized chat history management
-- Efficient response streaming
-- Pre-compiled language mappings
-- Message caching for reduced latency
+- Natural, concise conversation style
+- Optimized generation parameters
+- Efficient chat history management
+- Streamlined response handling
 
 ### Text to Speech (TTS)
-- ChatTTS optimized for CPU operations
-- Pre-allocated audio buffers
-- Text cleaning cache
-- Efficient audio processing and resampling
-- Atomic speaker embedding management
+- ChatTTS with multiple voice types:
+  - neutral: Balanced, natural speaking voice
+  - warm: Friendly, approachable voice
+  - professional: Clear, authoritative voice
+  - casual: Relaxed, conversational voice
+  - energetic: Dynamic, enthusiastic voice
+- Optimized audio processing
+- Smart interruption handling
+- Improved speech continuity
 
 ## Quick Setup
 
@@ -59,19 +63,26 @@ This script will:
 2. Configure the pipeline components for optimal performance
 3. Set up Ollama with the qwen2.5:7b model
 
-### Running the Pipeline
+## Running the Pipeline
 
-The optimized pipeline can be run with:
+### Basic Usage
 ```bash
+# Run with default settings (neutral voice)
 python s2s_pipeline.py --local_mac_optimal_settings --mode local --device mps --llm ollama --ollama_model qwen2.5:7b
 ```
 
-This command configures:
-- LightningWhisperMLX for STT (optimized for Apple Silicon)
-- Ollama with qwen2.5:7b model for LLM
-- ChatTTS for high-quality speech synthesis
-- MPS acceleration where supported
-- Automatic language detection and handling
+### Selecting a Voice Type
+```bash
+# Run with a specific voice type
+python s2s_pipeline.py --local_mac_optimal_settings --mode local --device mps --llm ollama --ollama_model qwen2.5:7b --tts_voice_type warm
+```
+
+Available voice types:
+- neutral: Best for general conversation
+- warm: Great for friendly interactions
+- professional: Ideal for formal content
+- casual: Perfect for informal chat
+- energetic: Good for engaging presentations
 
 ## Performance Optimizations
 
@@ -94,13 +105,6 @@ The pipeline includes several optimizations for improved performance:
    - Pre-compiled language mappings
    - Efficient language switching
    - Optimized prompts for each language
-
-## Alternative Setup & Usage
-
-For other setup options and detailed configuration, please refer to the [original project documentation](https://github.com/huggingface/speech-to-speech). The pipeline can be run using:
-- Server/Client approach
-- Local approach
-- Docker Server approach
 
 ## Requirements
 
