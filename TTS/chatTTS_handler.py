@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 import re
+import time
 from pathlib import Path
 from baseHandler import BaseHandler
 import librosa
@@ -36,7 +37,7 @@ class ChatTTSHandler(BaseHandler):
         device="cpu",  # ChatTTS uses CPU for stability with certain operations
         gen_kwargs={},  # Unused
         stream=True,
-        chunk_size=512,
+        chunk_size=1024,  # Larger chunks for smoother audio
         speaker_id=None,  # New parameter for speaker configuration
     ):
         self.should_listen = should_listen
@@ -46,9 +47,13 @@ class ChatTTSHandler(BaseHandler):
         self.chunk_size = chunk_size
         self.stream = stream
         
-        # Pre-allocate reusable buffers
-        self.audio_buffer = np.zeros(chunk_size, dtype=np.int16)
-        self.padding_buffer = np.zeros(chunk_size, dtype=np.int16)
+        # Pre-allocate reusable buffers with larger sizes
+        self.audio_buffer = np.zeros(chunk_size * 2, dtype=np.int16)  # Double buffer
+        self.padding_buffer = np.zeros(chunk_size * 2, dtype=np.int16)
+        
+        # Add cooldown to prevent interruptions
+        self.last_speech_time = 0
+        self.speech_cooldown = 0.5  # seconds
         
         # Cache for cleaned text
         self.text_cache = {}
@@ -146,6 +151,9 @@ class ChatTTSHandler(BaseHandler):
         # Extract and clean text
         llm_sentence = llm_input[0] if isinstance(llm_input, tuple) else llm_input
         llm_sentence = self.clean_text(llm_sentence)
+        
+        # Track speech timing
+        self.last_speech_time = time.time()
         console.print(f"[green]ASSISTANT: {llm_sentence}")
 
         # Get audio generator
@@ -156,7 +164,9 @@ class ChatTTSHandler(BaseHandler):
         if self.stream:
             for gen in wavs_gen:
                 if gen[0] is None or len(gen[0]) == 0:
-                    self.should_listen.set()
+                    # Only allow interruption after cooldown
+                    if time.time() - self.last_speech_time > self.speech_cooldown:
+                        self.should_listen.set()
                     return
                 
                 # Process audio chunk efficiently
@@ -181,7 +191,9 @@ class ChatTTSHandler(BaseHandler):
         else:
             wavs = wavs_gen
             if len(wavs[0]) == 0:
-                self.should_listen.set()
+                # Only allow interruption after cooldown
+                if time.time() - self.last_speech_time > self.speech_cooldown:
+                    self.should_listen.set()
                 return
                 
             # Process entire audio at once
@@ -196,5 +208,8 @@ class ChatTTSHandler(BaseHandler):
                     yield self.padding_buffer
                 else:
                     yield chunk
-                    
-        self.should_listen.set()
+        
+        # Update speech timing and respect cooldown
+        self.last_speech_time = time.time()
+        if time.time() - self.last_speech_time > self.speech_cooldown:
+            self.should_listen.set()
