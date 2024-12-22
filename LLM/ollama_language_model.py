@@ -18,6 +18,11 @@ WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
 # Pre-compile sentence ending patterns
 SENTENCE_ENDINGS = frozenset([".", "?", "!", "\n"])
 
+# Concise system prompt for natural conversation
+SYSTEM_PROMPT = """You are a friendly conversational AI. Keep responses natural, concise, and to the point. 
+Avoid repetition and unnecessary questions. Respond in a casual, human-like manner.
+Focus on providing direct, helpful information without being overly formal."""
+
 class OllamaLanguageModelHandler(BaseHandler):
     """
     Handles the language model part using Ollama Python client.
@@ -27,11 +32,16 @@ class OllamaLanguageModelHandler(BaseHandler):
         self,
         model_name="llama2",
         base_url="http://localhost:11434",
-        gen_kwargs={},
+        gen_kwargs={
+            "temperature": 0.7,  # Balanced between creative and focused
+            "top_k": 40,        # More focused response selection
+            "top_p": 0.9,       # Slightly reduced randomness
+            "repeat_penalty": 1.1,  # Mild penalty for repetition
+        },
         user_role="user",
-        chat_size=1,
-        init_chat_role=None,
-        init_chat_prompt="You are a helpful AI assistant.",
+        chat_size=3,  # Keep conversation context small
+        init_chat_role="system",
+        init_chat_prompt=SYSTEM_PROMPT,
     ):
         self.model_name = model_name
         self.client = ollama.Client(host=base_url)
@@ -51,7 +61,7 @@ class OllamaLanguageModelHandler(BaseHandler):
         
         # Cache for language prompts
         self.language_prompts = {
-            lang: f"Please reply to my message in {llm_lang}. "
+            lang: f"Respond in {llm_lang}. "  # Simplified language prompt
             for lang, llm_lang in WHISPER_LANGUAGE_TO_LLM_LANGUAGE.items()
         }
         
@@ -59,7 +69,7 @@ class OllamaLanguageModelHandler(BaseHandler):
 
     def warmup(self):
         logger.info(f"Warming up {self.__class__.__name__}")
-        dummy_input_text = "Repeat the word 'hello'."
+        dummy_input_text = "Hi"  # Simple warmup prompt
         try:
             # Test both generate and chat endpoints
             self.client.generate(model=self.model_name, prompt=dummy_input_text)
@@ -129,8 +139,11 @@ class OllamaLanguageModelHandler(BaseHandler):
             # Update chat history with complete response
             complete_response = "".join(generated_text)
             if complete_response:
+                # Trim chat history to maintain context size
+                if len(self.messages) >= self.chat.size * 2:
+                    self.messages = self.messages[-self.chat.size:]
+                
                 self.chat.append({"role": "assistant", "content": complete_response})
-                # Update messages cache
                 self.messages.append({"role": "assistant", "content": complete_response})
             
         except Exception as e:
