@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Literal
 
 
 @dataclass
@@ -17,7 +17,7 @@ class ModuleArguments:
     local_mac_optimal_settings: bool = field(
         default=False,
         metadata={
-            "help": "If specified, sets the optimal settings for Mac OS. Hence whisper-mlx, MLX LM and MeloTTS will be used."
+            "help": "If specified, sets the optimal settings for Mac OS. Hence whisper-mlx, MLX LM and chatTTS will be used."
         },
     )
     stt: Optional[str] = field(
@@ -35,7 +35,14 @@ class ModuleArguments:
     tts: Optional[str] = field(
         default="parler",
         metadata={
-            "help": "The TTS to use. Either 'parler', 'melo', 'chatTTS' or 'facebookMMS'. Default is 'parler'"
+            "help": "The TTS to use. Either 'parler', 'chatTTS' or 'facebookMMS'. Default is 'parler'"
+        },
+    )
+    tts_voice_type: Literal["neutral", "warm", "professional", "casual", "energetic"] = field(
+        default="neutral",
+        metadata={
+            "help": "Voice type for ChatTTS. Options: neutral (balanced), warm (friendly), "
+                   "professional (clear), casual (relaxed), energetic (dynamic). Default is 'neutral'."
         },
     )
     log_level: str = field(

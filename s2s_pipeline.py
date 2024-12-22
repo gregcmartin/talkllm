@@ -124,11 +124,11 @@ def optimal_mac_settings(mac_optimal_settings: Optional[str], *handler_kwargs):
             if hasattr(kwargs, "mode"):
                 kwargs.mode = "local"
             if hasattr(kwargs, "stt"):
-                kwargs.stt = "moonshine"
+                kwargs.stt = "whisper-mlx"
             if hasattr(kwargs, "llm"):
                 kwargs.llm = "mlx-lm"
             if hasattr(kwargs, "tts"):
-                kwargs.tts = "melo"
+                kwargs.tts = "chatTTS"
 
 
 def check_mac_settings(module_kwargs):
@@ -141,9 +141,9 @@ def check_mac_settings(module_kwargs):
             logger.warning(
                 "For macOS users, it is recommended to use mlx-lm. You can activate it by passing --llm mlx-lm."
             )
-        if module_kwargs.tts != "melo":
+        if module_kwargs.tts != "chatTTS":
             logger.warning(
-                "If you experiences issues generating the voice, considering setting the tts to melo."
+                "For macOS users, it is recommended to use chatTTS. You can activate it by passing --tts chatTTS."
             )
 
 
@@ -292,13 +292,6 @@ def build_pipeline(
 
 
 def get_stt_handler(module_kwargs, stop_event, spoken_prompt_queue, text_prompt_queue, whisper_stt_handler_kwargs, faster_whisper_stt_handler_kwargs, paraformer_stt_handler_kwargs):
-    if module_kwargs.stt == "moonshine":
-        from STT.moonshine_handler import MoonshineSTTHandler
-        return MoonshineSTTHandler(
-            stop_event,
-            queue_in=spoken_prompt_queue,
-            queue_out=text_prompt_queue,
-        )
     if module_kwargs.stt == "whisper":
         from STT.whisper_stt_handler import WhisperSTTHandler
         return WhisperSTTHandler(
@@ -418,7 +411,10 @@ def get_tts_handler(module_kwargs, stop_event, lm_response_queue, send_audio_chu
             queue_in=lm_response_queue,
             queue_out=send_audio_chunks_queue,
             setup_args=(should_listen,),
-            setup_kwargs=vars(chat_tts_handler_kwargs),
+            setup_kwargs={
+                **vars(chat_tts_handler_kwargs),
+                'voice_type': module_kwargs.tts_voice_type
+            },
         )
     elif module_kwargs.tts == "facebookMMS":
         from TTS.facebookmms_handler import FacebookMMSTTSHandler
@@ -430,7 +426,7 @@ def get_tts_handler(module_kwargs, stop_event, lm_response_queue, send_audio_chu
             setup_kwargs=vars(facebook_mms_tts_handler_kwargs),
         )
     else:
-        raise ValueError("The TTS should be either parler, melo or chatTTS")
+        raise ValueError("The TTS should be either parler, chatTTS, or facebookMMS")
 
 
 def main():
