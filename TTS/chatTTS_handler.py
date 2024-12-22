@@ -4,6 +4,7 @@ import os
 import pickle
 import re
 import time
+import hashlib
 from pathlib import Path
 from baseHandler import BaseHandler
 import librosa
@@ -32,11 +33,11 @@ PUNCTUATION_PATTERNS = {
 
 # Voice types with their characteristics
 VOICE_TYPES = {
-    "neutral": {"description": "Balanced, natural speaking voice"},
-    "warm": {"description": "Friendly, approachable voice"},
-    "professional": {"description": "Clear, authoritative voice"},
-    "casual": {"description": "Relaxed, conversational voice"},
-    "energetic": {"description": "Dynamic, enthusiastic voice"},
+    "neutral": {"description": "Balanced, natural speaking voice", "seed": 42},
+    "warm": {"description": "Friendly, approachable voice", "seed": 137},
+    "professional": {"description": "Clear, authoritative voice", "seed": 271},
+    "casual": {"description": "Relaxed, conversational voice", "seed": 314},
+    "energetic": {"description": "Dynamic, enthusiastic voice", "seed": 628},
 }
 
 class ChatTTSHandler(BaseHandler):
@@ -97,33 +98,32 @@ class ChatTTSHandler(BaseHandler):
             self._create_new_speaker()
 
     def _create_new_speaker(self):
-        """Create and save new speaker embedding."""
-        # Sample multiple voices and select the best match for the voice type
-        best_embedding = None
-        best_score = float('-inf')
+        """Create and save new speaker embedding with deterministic selection."""
+        # Set fixed seed for voice type
+        seed = VOICE_TYPES[self.voice_type]["seed"]
+        torch.manual_seed(seed)
+        np.random.seed(seed)
         
-        # Try more voices for better selection
-        for _ in range(10):  # Increased from 5 to 10 attempts
+        # Generate a fixed number of candidates
+        candidates = []
+        for _ in range(20):  # Generate more candidates for better selection
             embedding = self.model.sample_random_speaker()
-            score = self._evaluate_voice_match(embedding)
-            if score > best_score:
-                best_score = score
-                best_embedding = embedding
+            # Create a deterministic hash of the embedding
+            embedding_hash = hashlib.sha256(embedding.tobytes()).hexdigest()
+            candidates.append((embedding, embedding_hash))
         
-        self.speaker_embedding = best_embedding
+        # Sort candidates by hash to ensure deterministic selection
+        candidates.sort(key=lambda x: x[1])
+        
+        # Always select the same embedding for this voice type
+        self.speaker_embedding = candidates[0][0]
+        
+        # Reset random seeds
+        torch.manual_seed(torch.initial_seed())
+        np.random.seed(None)
+        
         self._save_speaker_embedding()
-        logger.info(f"Generated new {self.voice_type} voice")
-
-    def _evaluate_voice_match(self, embedding):
-        """Evaluate how well a voice matches the desired type."""
-        # This is a placeholder for voice characteristic analysis
-        # In practice, you would analyze the embedding's characteristics
-        # For now, we'll use a consistent random seed based on the voice type
-        # to ensure we get the same voice each time for a given type
-        np.random.seed(hash(self.voice_type) % (2**32))
-        score = np.random.random()
-        np.random.seed(None)  # Reset seed
-        return score
+        logger.info(f"Generated deterministic {self.voice_type} voice")
 
     def _save_speaker_embedding(self):
         """Save speaker embedding with atomic write."""
